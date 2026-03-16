@@ -1,5 +1,6 @@
 import Transaction from "../models/TransactionModel.js";
 import cron from "node-cron";
+import { invalidateUserAICache } from "./aiController.js";
 
 // Daily cron: auto-create due recurring transactions
 cron.schedule("0 0 * * *", async () => {
@@ -51,10 +52,10 @@ export const addTransaction = async (req, res) => {
   try {
     const { amount, category, type, date, title, note, isRecurring, recurringInterval, recurringEndDate } = req.body;
 
-    if (!amount || !category || !type || !date || !title) {
+    if (!amount || !category || !type || !date) {
       return res.status(400).json({
         success: false,
-        message: "Please provide amount, category, type, date, and title",
+        message: "Please provide amount, category, type, and date.",
       });
     }
 
@@ -65,14 +66,16 @@ export const addTransaction = async (req, res) => {
       });
     }
 
+    const safeTitle = title?.trim() || `${type === "income" ? "Income" : "Expense"} entry`;
+
     const txData = {
       userId: req.userId,
-      amount,
+      amount: parseFloat(amount),
       category,
       type,
-      date,
-      title,
-      note,
+      date: new Date(date),
+      title: safeTitle,
+      note: note?.trim() || "",
     };
 
     if (isRecurring) {
@@ -99,6 +102,7 @@ export const addTransaction = async (req, res) => {
     }
 
     const newTransaction = await Transaction.create(txData);
+    await invalidateUserAICache(req.userId);
 
     res.status(201).json({
       success: true,
@@ -178,6 +182,8 @@ export const updateTransaction = async (req, res) => {
       return res.status(404).json({ success: false, message: "Transaction not found" });
     }
 
+    await invalidateUserAICache(req.userId);
+
     res.status(200).json({
       success: true,
       message: "Transaction updated successfully",
@@ -202,6 +208,8 @@ export const deleteTransaction = async (req, res) => {
     if (!deleted) {
       return res.status(404).json({ success: false, message: "Transaction not found" });
     }
+
+    await invalidateUserAICache(req.userId);
 
     res.status(200).json({ success: true, message: "Transaction deleted successfully" });
   } catch (error) {

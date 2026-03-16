@@ -39,7 +39,11 @@ const ReceiptScanner = ({ onExtracted }) => {
       const { data } = await scanReceipt(formData);
       setStatus("success");
       setExtractedData(data.data);
-      setMessage("Receipt scanned! Review and click 'Use in Form' to fill the transaction.");
+      setMessage("Receipt scanned! Details are filled in the form. You can edit and then submit.");
+
+      if (onExtracted && data?.data) {
+        onExtracted(data.data);
+      }
     } catch (err) {
       const errData = err.response?.data;
       if (err.response?.status === 422) {
@@ -195,7 +199,7 @@ const ReceiptScanner = ({ onExtracted }) => {
                   onClick={handleUseData}
                   className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition"
                 >
-                  Use in Form
+                  Apply Again
                 </button>
                 <button
                   onClick={handleReset}

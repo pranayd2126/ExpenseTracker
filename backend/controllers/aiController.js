@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import Transaction from "../models/TransactionModel.js";
 import Category from "../models/categorySchema.js";
+import AICache from "../models/AICacheModel.js";
 
 // ─── Two separate LLM clients (plug in your own keys/endpoints) ───────────────
 
@@ -80,6 +81,33 @@ function extractMessageText(content) {
 function parseJSON(raw) {
   const cleaned = raw.replace(/^```json?\s*/i, "").replace(/```\s*$/i, "").trim();
   return JSON.parse(cleaned);
+}
+
+async function getTransactionSignature(userId) {
+  const [count, latest] = await Promise.all([
+    Transaction.countDocuments({ userId }),
+    Transaction.findOne({ userId }).sort({ updatedAt: -1 }).select("updatedAt").lean(),
+  ]);
+
+  const latestStamp = latest?.updatedAt ? new Date(latest.updatedAt).getTime() : 0;
+  return `${count}:${latestStamp}`;
+}
+
+async function getCachedPayload(userId, cacheType, signature) {
+  const cached = await AICache.findOne({ userId, cacheType, signature }).lean();
+  return cached?.payload || null;
+}
+
+async function saveCachedPayload(userId, cacheType, signature, payload) {
+  await AICache.findOneAndUpdate(
+    { userId, cacheType, signature },
+    { userId, cacheType, signature, payload },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
+}
+
+export async function invalidateUserAICache(userId) {
+  await AICache.deleteMany({ userId });
 }
 
 // ─── Receipt Scanning ─────────────────────────────────────────────────────────
@@ -203,6 +231,16 @@ export const getAISuggestions = async (req, res) => {
       });
     }
 
+    const signature = await getTransactionSignature(req.userId);
+    const cachedPayload = await getCachedPayload(req.userId, "suggestions", signature);
+    if (cachedPayload) {
+      return res.status(200).json({
+        success: true,
+        cached: true,
+        data: cachedPayload,
+      });
+    }
+
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
@@ -212,15 +250,20 @@ export const getAISuggestions = async (req, res) => {
     }).populate("category", "name type");
 
     if (transactions.length === 0) {
+      const emptyPayload = {
+        suggestion: "Add some transactions first to get personalized AI suggestions.",
+        tips: [],
+        totalIncome: 0,
+        totalExpense: 0,
+        prediction: null,
+      };
+
+      await saveCachedPayload(req.userId, "suggestions", signature, emptyPayload);
+
       return res.status(200).json({
         success: true,
-        data: {
-          suggestion: "Add some transactions first to get personalized AI suggestions.",
-          tips: [],
-          totalIncome: 0,
-          totalExpense: 0,
-          prediction: null,
-        },
+        cached: false,
+        data: emptyPayload,
       });
     }
 
@@ -283,9 +326,13 @@ Respond ONLY with this JSON (no markdown, no extra text):
       aiData = { suggestion: raw, tips: [] };
     }
 
+    const payload = { ...aiData, totalIncome, totalExpense };
+    await saveCachedPayload(req.userId, "suggestions", signature, payload);
+
     return res.status(200).json({
       success: true,
-      data: { ...aiData, totalIncome, totalExpense },
+      cached: false,
+      data: payload,
     });
   } catch (error) {
     console.error("AI suggestions error:", error);
@@ -309,6 +356,12 @@ export const predictExpenses = async (req, res) => {
       });
     }
 
+    const signature = await getTransactionSignature(req.userId);
+    const cachedPayload = await getCachedPayload(req.userId, "predict", signature);
+    if (cachedPayload) {
+      return res.status(200).json({ success: true, cached: true, data: cachedPayload });
+    }
+
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
@@ -319,14 +372,19 @@ export const predictExpenses = async (req, res) => {
     });
 
     if (transactions.length < 5) {
+      const payload = {
+        message:
+          "Not enough data to predict. Add more transactions for accurate predictions.",
+        predictedTotal: null,
+        trend: null,
+      };
+
+      await saveCachedPayload(req.userId, "predict", signature, payload);
+
       return res.status(200).json({
         success: true,
-        data: {
-          message:
-            "Not enough data to predict. Add more transactions for accurate predictions.",
-          predictedTotal: null,
-          trend: null,
-        },
+        cached: false,
+        data: payload,
       });
     }
 
@@ -368,7 +426,9 @@ Predict total expense for next month. Respond ONLY with this JSON (no markdown, 
       prediction = { message: raw };
     }
 
-    return res.status(200).json({ success: true, data: prediction });
+    await saveCachedPayload(req.userId, "predict", signature, prediction);
+
+    return res.status(200).json({ success: true, cached: false, data: prediction });
   } catch (error) {
     console.error("Prediction error:", error);
     res.status(500).json({

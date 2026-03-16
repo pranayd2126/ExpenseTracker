@@ -1,12 +1,16 @@
 // src/pages/AddTransaction.jsx
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import { getCategories, addTransaction } from "../services/api";
 import ReceiptScanner from "../components/ReceiptScanner";
 
 const AddTransaction = () => {
+  const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [showScanner, setShowScanner] = useState(false);
-  const [scannerKey, setScannerKey] = useState(0); // reset scanner after use
+  const [scannerKey, setScannerKey] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
     amount: "",
     type: "expense",
@@ -16,10 +20,9 @@ const AddTransaction = () => {
     date: new Date().toISOString().slice(0, 10),
     isRecurring: false,
     recurringInterval: "",
-    recurringEndDate: "" // new field for optional end date
+    recurringEndDate: ""
   });
 
-  // Fetch categories (default + user-created)
   useEffect(() => {
     fetchCategories();
   }, []);
@@ -29,11 +32,11 @@ const AddTransaction = () => {
       const { data } = await getCategories();
       setCategories(data.categories);
     } catch (err) {
+      toast.error("Failed to load categories");
       console.error(err);
     }
   };
 
-  // Handle input changes
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm((prev) => ({
@@ -42,7 +45,6 @@ const AddTransaction = () => {
     }));
   };
 
-  // Called when ReceiptScanner successfully extracts data
   const handleExtracted = (extracted) => {
     setForm((prev) => ({
       ...prev,
@@ -54,23 +56,37 @@ const AddTransaction = () => {
       date: extracted.date || prev.date,
     }));
     setShowScanner(false);
-    setScannerKey((k) => k + 1); // reset scanner state
+    setScannerKey((k) => k + 1);
   };
 
-  // Submit form
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
-    try {
-      // Prepare payload
+      // Validate required fields
+      if (!form.amount || form.amount <= 0) {
+        toast.error("Please enter a valid amount");
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!form.category) {
+        toast.error("Please select a category");
+        setIsSubmitting(false);
+        return;
+      }
+
+      try {
       const payload = {
         ...form,
-        recurringEndDate:
-          form.recurringEndDate === "" ? null : form.recurringEndDate
+          title: form.title?.trim() || "",
+          amount: parseFloat(form.amount),
+        recurringEndDate: form.recurringEndDate === "" ? null : form.recurringEndDate
       };
 
       await addTransaction(payload);
-      alert("Transaction added successfully!");
+      
+        toast.success(`${form.type === "income" ? "💰 Income" : "🛒 Expense"} added successfully!`);
 
       // Reset form
       setForm((prev) => ({
@@ -84,9 +100,17 @@ const AddTransaction = () => {
         recurringInterval: "",
         recurringEndDate: ""
       }));
+
+      // Navigate to dashboard after 1.5 seconds to see the new transaction
+      setTimeout(() => {
+        navigate("/", { replace: true });
+      }, 1500);
     } catch (err) {
-      console.error(err);
-      alert("Error adding transaction!");
+      const errorMsg = err?.response?.data?.message || err?.message || "Error adding transaction";
+      toast.error(errorMsg);
+      console.error("Transaction error:", err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -94,7 +118,6 @@ const AddTransaction = () => {
     <div className="max-w-md mx-auto p-4">
       <h2 className="text-xl font-bold mb-4">Add Transaction</h2>
 
-      {/* Receipt Scanner toggle */}
       <div className="mb-4">
         <button
           type="button"
@@ -111,37 +134,34 @@ const AddTransaction = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Amount */}
         <input
           type="number"
           name="amount"
           value={form.amount}
           onChange={handleChange}
           placeholder="Amount"
-          required
-          className="w-full p-2 border rounded"
+          step="0.01"
+          min="0"
+          className="w-full p-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
-        {/* Type */}
         <select
           name="type"
           value={form.type}
           onChange={handleChange}
-          className="w-full p-2 border rounded"
+          className="w-full p-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="income">Income</option>
           <option value="expense">Expense</option>
         </select>
 
-        {/* Category */}
         <select
           name="category"
           value={form.category}
           onChange={handleChange}
-          required
-          className="w-full p-2 border rounded"
+          className="w-full p-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="">Select Category</option>
+          <option value="">Select Category (required)</option>
           {categories.map((c) => (
             <option key={c._id} value={c._id}>
               {c.name}
@@ -149,33 +169,30 @@ const AddTransaction = () => {
           ))}
         </select>
 
-        {/* Title */}
         <input
           type="text"
           name="title"
           value={form.title}
           onChange={handleChange}
-          placeholder="Title (optional)"
-          className="w-full p-2 border rounded"
+          placeholder="Title (optional, e.g., Salary, Groceries)"
+          className="w-full p-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
-        {/* Note */}
         <input
           type="text"
           name="note"
           value={form.note}
           onChange={handleChange}
           placeholder="Note (optional)"
-          className="w-full p-2 border rounded"
+          className="w-full p-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
-        {/* Date */}
         <input
           type="date"
           name="date"
           value={form.date}
           onChange={handleChange}
-          className="w-full p-2 border rounded"
+          className="w-full p-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
         {/* Recurring */}
@@ -227,9 +244,10 @@ const AddTransaction = () => {
         {/* Submit */}
         <button
           type="submit"
-          className="w-full bg-blue-500 text-white p-2 rounded"
+          disabled={isSubmitting}
+          className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:bg-blue-300 disabled:cursor-not-allowed transition"
         >
-          Add Transaction
+          {isSubmitting ? "Adding..." : "Add Transaction"}
         </button>
       </form>
     </div>
