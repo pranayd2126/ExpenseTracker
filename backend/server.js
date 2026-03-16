@@ -6,6 +6,10 @@ import cookieParser from "cookie-parser";
 
 dotenv.config();
 
+
+import userRoutes from "./routes/userRoutes.js";
+import expenseRoutes from "./routes/expenceRoutes.js";
+
 const app = express();
 app.use(cors());
 
@@ -27,7 +31,8 @@ async function connectDB() {
 connectDB();
 
 //routes
-//app.use("/users-api", userRoutes);
+app.use("/users-api", userRoutes);
+app.use("/expense-api", expenseRoutes);
 
 function errorHandler(err, req, res, next) {
   res.json({ message: "error", reason: err.message });
