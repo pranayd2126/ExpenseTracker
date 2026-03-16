@@ -1,9 +1,12 @@
 // src/pages/AddTransaction.jsx
 import React, { useEffect, useState } from "react";
 import { getCategories, addTransaction } from "../services/api";
+import ReceiptScanner from "../components/ReceiptScanner";
 
 const AddTransaction = () => {
   const [categories, setCategories] = useState([]);
+  const [showScanner, setShowScanner] = useState(false);
+  const [scannerKey, setScannerKey] = useState(0); // reset scanner after use
   const [form, setForm] = useState({
     amount: "",
     type: "expense",
@@ -37,6 +40,21 @@ const AddTransaction = () => {
       ...prev,
       [name]: type === "checkbox" ? checked : value
     }));
+  };
+
+  // Called when ReceiptScanner successfully extracts data
+  const handleExtracted = (extracted) => {
+    setForm((prev) => ({
+      ...prev,
+      title: extracted.title || prev.title,
+      amount: extracted.amount || prev.amount,
+      type: extracted.type || prev.type,
+      category: extracted.suggestedCategoryId || prev.category,
+      note: extracted.note || prev.note,
+      date: extracted.date || prev.date,
+    }));
+    setShowScanner(false);
+    setScannerKey((k) => k + 1); // reset scanner state
   };
 
   // Submit form
@@ -75,6 +93,23 @@ const AddTransaction = () => {
   return (
     <div className="max-w-md mx-auto p-4">
       <h2 className="text-xl font-bold mb-4">Add Transaction</h2>
+
+      {/* Receipt Scanner toggle */}
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={() => setShowScanner((v) => !v)}
+          className="w-full flex items-center justify-center gap-2 border border-blue-400 text-blue-600 py-2 rounded-lg text-sm hover:bg-blue-50 transition"
+        >
+          📷 {showScanner ? "Hide Receipt Scanner" : "Scan Receipt with AI"}
+        </button>
+        {showScanner && (
+          <div className="mt-3">
+            <ReceiptScanner key={scannerKey} onExtracted={handleExtracted} />
+          </div>
+        )}
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Amount */}
         <input

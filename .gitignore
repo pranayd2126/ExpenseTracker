@@ -51,4 +51,4 @@ Thumbs.db
 # --- Databases (If running local MongoDB/SQLite) ---
 *.db
 *.sqlite
-dump/git rm -r --cached .
+dump/   

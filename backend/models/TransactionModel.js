@@ -1,43 +1,59 @@
-import {Schema, model} from 'mongoose';
+import mongoose from "mongoose";
 
-const transactionSchema=new Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "UserModel",
-    required: true
+const transactionSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    amount: {
+      type: Number,
+      required: true,
+    },
+    type: {
+      type: String,
+      enum: ["income", "expense"],
+      required: true,
+    },
+    category: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category",
+      required: true,
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    note: {
+      type: String,
+      trim: true,
+    },
+    date: {
+      type: Date,
+      default: Date.now,
+    },
+    isRecurring: {
+      type: Boolean,
+      default: false,
+    },
+    recurringInterval: {
+      type: String,
+      enum: ["weekly", "monthly", "yearly"],
+    },
+    nextRecurringDate: {
+      type: Date,
+    },
+    recurringEndDate: {
+      type: Date,
+      default: null,
+    },
   },
-
-  amount: {
-    type: Number,
-    required: true
-  },
-
-  type: {
-    type: String,
-    enum: ["income", "expense"],
-    required: true
-  },
-
-  category: {
-    type: String,
-    required: true
-  },
-
-  note: {
-    type: String
-  },
-  date: {
-    type: Date,
-    default: Date.now
-  }
-  
-
-}, {
-    strict:"throw",
+  {
     timestamps: true,
-    versionKey: false
-})
+    versionKey: false,
+  },
+);
 
-
-const TransactionModel = model("Transaction", transactionSchema);
-export default TransactionModel;
+export default mongoose.model("Transaction", transactionSchema);
