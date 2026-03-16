@@ -4,11 +4,6 @@ import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
-// //route imports
-// import userRoutes from "./routes/userRoutes.js";
-// import authRoutes from "./routes/authRoutes.js";
-// import roomRoutes from "./routes/roomRoutes.js";
-
 dotenv.config();
 
 const app = express();
