@@ -1,11 +1,65 @@
+import express from "express";
+import mongoose from "mongoose";
+import dotenv from "dotenv";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+
+// //route imports
+// import userRoutes from "./routes/userRoutes.js";
+// import authRoutes from "./routes/authRoutes.js";
+// import roomRoutes from "./routes/roomRoutes.js";
+
+dotenv.config();
 
 const app = express();
-const port = 3000;
+app.use(cors());
 
-app.get('/', (req, res) => {
-  res.send('Hello, World!');
-});
+app.use(cookieParser());
 
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+app.use(express.json());
+
+async function connectDB() {
+  try {
+    await mongoose.connect(process.env.MONGO_URL);
+    console.log("Connected to MongoDB");
+    app.listen(process.env.PORT || 3000, () => {
+      console.log(`Server is running on port ${process.env.PORT || 5000}`);
+    });
+  } catch (error) {
+    console.error("Error connecting to MongoDB:", error);
+  }
+}
+connectDB();
+
+//routes
+//app.use("/users-api", userRoutes);
+
+function errorHandler(err, req, res, next) {
+  res.json({ message: "error", reason: err.message });
+}
+app.use(errorHandler);
+
+app.use((err, req, res, next) => {
+  // Mongoose validation error
+  if (err.name === "ValidationError") {
+    return res.status(400).json({
+      message: "Validation failed",
+      errors: err.errors,
+    });
+  }
+  // Invalid ObjectId
+  if (err.name === "CastError") {
+    return res.status(400).json({
+      message: "Invalid ID format",
+    });
+  }
+  // Duplicate key
+  if (err.code === 11000) {
+    return res.status(409).json({
+      message: "Duplicate field value",
+    });
+  }
+  res.status(500).json({
+    message: "Internal Server Error",
+  });
 });
