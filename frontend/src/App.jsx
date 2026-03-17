@@ -1,8 +1,9 @@
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { createBrowserRouter, RouterProvider } from "react-router";
 import RootLayout from "./layouts/RootLayout";
 import Dashboard from "./pages/Dashboard";
 import AddTransaction from "./pages/AddTransaction";
 import Reports from "./pages/Reports";
+import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -26,6 +27,7 @@ const router = createBrowserRouter([
           { index: true, element: <Dashboard /> },
           { path: "/add", element: <AddTransaction /> },
           { path: "/reports", element: <Reports /> },
+          { path: "/settings", element: <Settings /> },
         ],
       },
     ],

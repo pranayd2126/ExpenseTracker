@@ -1,6 +1,8 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../models/UserModel.js";
+import Category from "../models/categorySchema.js";
+import Transaction from "../models/TransactionModel.js";
 
 export const register = async (req, res) => {
   try {
@@ -194,7 +196,7 @@ export const getUserProfile = async (req, res) => {
 
 export const updateUser = async (req, res) => {
   try {
-    const { firstName, lastName, email, incomeMode, defaultSalary } = req.body;
+    const { firstName, lastName, email, incomeMode, defaultSalary, country, region, currencyCode, theme } = req.body;
     const user = await User.findById(req.userId);
 
     if (!user) {
@@ -206,6 +208,10 @@ export const updateUser = async (req, res) => {
     if (email !== undefined) user.email = email;
     if (incomeMode !== undefined) user.incomeMode = incomeMode;
     if (defaultSalary !== undefined) user.defaultSalary = defaultSalary;
+    if (country !== undefined) user.country = country;
+    if (region !== undefined) user.region = region;
+    if (currencyCode !== undefined) user.currencyCode = String(currencyCode).toUpperCase();
+    if (theme !== undefined) user.theme = theme;
 
     await user.save();
 
@@ -216,5 +222,36 @@ export const updateUser = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: "Error updating profile" });
+  }
+};
+
+export const exportBackup = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select("-password");
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const [categories, transactions] = await Promise.all([
+      Category.find({ $or: [{ isDefault: true }, { userId: req.userId }] }).lean(),
+      Transaction.find({ userId: req.userId }).populate("category", "name type").lean(),
+    ]);
+
+    const backupPayload = {
+      exportedAt: new Date().toISOString(),
+      profile: user,
+      categories,
+      transactions,
+    };
+
+    const safeName = String(user.firstName || "user").replace(/\s+/g, "-").toLowerCase();
+    const fileName = `expense-tracker-backup-${safeName}-${new Date().toISOString().slice(0, 10)}.json`;
+
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`);
+    return res.status(200).send(JSON.stringify(backupPayload, null, 2));
+  } catch (error) {
+    console.error("Export backup error:", error);
+    return res.status(500).json({ success: false, message: "Error exporting backup" });
   }
 };

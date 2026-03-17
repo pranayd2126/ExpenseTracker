@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom"; // Added for navigation support
+import { useLocation } from "react-router"; // Added for navigation support
 import { getTransactions, updateTransaction, deleteTransaction, getCategories } from "../services/api";
+import { useAuth } from "../context/AuthContext";
+import { formatCurrency } from "../utils/currency";
 
 function formatDate(value) {
   if (!value) return "";
@@ -9,16 +11,9 @@ function formatDate(value) {
   } catch { return value; }
 }
 
-function formatCurrency(value) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 0,
-  }).format(value || 0);
-}
-
 function Reports() {
   const location = useLocation();
+  const { user } = useAuth();
   const queryParams = new URLSearchParams(location.search);
 
   // --- Initial URL State ---
@@ -43,9 +38,12 @@ function Reports() {
   // --- Edit Mode ---
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ 
-    title: "", amount: "", type: "", date: "", category: "", note: "" 
+    title: "", amount: "", type: "", date: "", category: "", note: "", isRecurring: false, recurringInterval: "", recurringEndDate: ""
   });
   const [statusMessage, setStatusMessage] = useState("");
+
+  const currencyRegion = user?.region || "en-IN";
+  const currencyCode = user?.currencyCode || "INR";
 
   useEffect(() => {
     // Load categories first so we can map Names to IDs if needed
@@ -55,6 +53,14 @@ function Reports() {
   useEffect(() => {
     fetchTransactions();
   }, [typeFilter, catFilter, sortOrder, selectedMonth, selectedYear, categories]);
+
+  useEffect(() => {
+    if (typeFilter === "all" || catFilter === "all") return;
+    const selectedCategory = categories.find((category) => category._id === catFilter);
+    if (selectedCategory && selectedCategory.type !== typeFilter) {
+      setCatFilter("all");
+    }
+  }, [typeFilter, catFilter, categories]);
 
   const loadCategories = async () => {
     try {
@@ -99,13 +105,28 @@ function Reports() {
       type: item.type,
       date: item.date ? new Date(item.date).toISOString().split('T')[0] : "",
       category: item.category?._id || item.category || "",
-      note: item.note || "" 
+      note: item.note || "",
+      isRecurring: Boolean(item.isRecurring || item.recurringGroupId),
+      recurringInterval: item.recurringInterval || "",
+      recurringEndDate: item.recurringEndDate ? new Date(item.recurringEndDate).toISOString().split('T')[0] : "",
     });
   };
 
   const handleUpdate = async (id) => {
     try {
-      await updateTransaction(id, editForm);
+      const payload = {
+        ...editForm,
+        amount: Number(editForm.amount),
+      };
+
+      if (!payload.isRecurring) {
+        payload.recurringInterval = "";
+        payload.recurringEndDate = null;
+      } else {
+        payload.recurringEndDate = payload.recurringEndDate || null;
+      }
+
+      await updateTransaction(id, payload);
       setEditingId(null);
       showStatus("Transaction Updated!");
       fetchTransactions();
@@ -122,6 +143,9 @@ function Reports() {
     const expense = transactions.filter(t => t.type === "expense").reduce((s, i) => s + (i.amount || 0), 0);
     return { income, expense, balance: income - expense };
   }, [transactions]);
+
+  const categoryFilterOptions =
+    typeFilter === "all" ? categories : categories.filter((category) => category.type === typeFilter);
 
   return (
     <div className="space-y-6 pb-10 px-2">
@@ -150,7 +174,7 @@ function Reports() {
             className="border rounded-lg p-2 text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">All Categories</option>
-            {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+            {categoryFilterOptions.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
           </select>
         </div>
 
@@ -182,15 +206,15 @@ function Reports() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
           <p className="text-xs text-green-600 font-bold uppercase">Income</p>
-          <p className="text-2xl font-bold text-green-700">{formatCurrency(totals.income)}</p>
+          <p className="text-2xl font-bold text-green-700">{formatCurrency(totals.income, currencyRegion, currencyCode)}</p>
         </div>
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
           <p className="text-xs text-red-600 font-bold uppercase">Expense</p>
-          <p className="text-2xl font-bold text-red-700">{formatCurrency(totals.expense)}</p>
+          <p className="text-2xl font-bold text-red-700">{formatCurrency(totals.expense, currencyRegion, currencyCode)}</p>
         </div>
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
           <p className="text-xs text-blue-600 font-bold uppercase">Balance</p>
-          <p className="text-2xl font-bold text-blue-700">{formatCurrency(totals.balance)}</p>
+          <p className="text-2xl font-bold text-blue-700">{formatCurrency(totals.balance, currencyRegion, currencyCode)}</p>
         </div>
       </div>
 
@@ -228,13 +252,52 @@ function Reports() {
                     <td className="px-6 py-4 text-slate-600">
                       {editingId === item._id ? (
                         <select className="border rounded p-1 w-full bg-white" value={editForm.category} onChange={(e) => setEditForm({...editForm, category: e.target.value})}>
-                          {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+                          {categories
+                            .filter((c) => c.type === editForm.type)
+                            .map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
                         </select>
                       ) : (item.category?.name || "General")}
                     </td>
                     <td className="px-6 py-4 text-slate-400 italic">
                       {editingId === item._id ? (
-                        <input className="border rounded px-2 py-1 w-full" value={editForm.note} onChange={(e) => setEditForm({...editForm, note: e.target.value})} />
+                        <div className="space-y-2">
+                          <input className="border rounded px-2 py-1 w-full" value={editForm.note} onChange={(e) => setEditForm({...editForm, note: e.target.value})} />
+
+                          <label className="flex items-center gap-2 text-xs text-slate-600 not-italic">
+                            <input
+                              type="checkbox"
+                              checked={editForm.isRecurring}
+                              onChange={(e) => setEditForm({
+                                ...editForm,
+                                isRecurring: e.target.checked,
+                                recurringInterval: e.target.checked ? (editForm.recurringInterval || "monthly") : "",
+                                recurringEndDate: e.target.checked ? editForm.recurringEndDate : "",
+                              })}
+                            />
+                            Recurring
+                          </label>
+
+                          {editForm.isRecurring && (
+                            <div className="space-y-2 not-italic">
+                              <select
+                                className="border rounded px-2 py-1 w-full text-xs"
+                                value={editForm.recurringInterval}
+                                onChange={(e) => setEditForm({ ...editForm, recurringInterval: e.target.value })}
+                              >
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="yearly">Yearly</option>
+                              </select>
+                              <input
+                                type="date"
+                                className="border rounded px-2 py-1 w-full text-xs"
+                                value={editForm.recurringEndDate || ""}
+                                onChange={(e) => setEditForm({ ...editForm, recurringEndDate: e.target.value })}
+                              />
+                              <p className="text-[10px] text-slate-500">Set an end date to auto-schedule the series.</p>
+                            </div>
+                          )}
+                        </div>
                       ) : (item.note || "—")}
                     </td>
                     <td className="px-6 py-4">
@@ -252,7 +315,7 @@ function Reports() {
                     <td className="px-6 py-4 text-right font-bold text-slate-900">
                       {editingId === item._id ? (
                         <input type="number" className="border rounded px-2 py-1 w-24 text-right font-bold" value={editForm.amount} onChange={(e) => setEditForm({...editForm, amount: e.target.value})} />
-                      ) : formatCurrency(item.amount)}
+                      ) : formatCurrency(item.amount, currencyRegion, currencyCode)}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex justify-center gap-3">

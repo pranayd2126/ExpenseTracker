@@ -1,11 +1,28 @@
 import React from "react";
 import { Pie } from "react-chartjs-2";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
+import { useAuth } from "../context/AuthContext";
+import { formatCurrency } from "../utils/currency";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 const PieChart = ({ data, onSliceClick }) => { // Added onSliceClick prop
-  if (!data || data.length === 0) {
+  const { user } = useAuth();
+  const region = user?.region || "en-IN";
+  const currencyCode = user?.currencyCode || "INR";
+
+  const normalizedData = (Array.isArray(data) ? data : [])
+    .map((item) => {
+      const categoryName = item?.categoryName || item?._id?.categoryName || item?._id || "Uncategorized";
+      const totalAmount = Number(item?.totalAmount ?? item?.amount ?? item?.total ?? 0);
+      return {
+        categoryName,
+        totalAmount: Number.isFinite(totalAmount) ? totalAmount : 0,
+      };
+    })
+    .filter((item) => item.totalAmount > 0);
+
+  if (normalizedData.length === 0) {
     return (
       <div className="flex items-center justify-center h-80 bg-slate-50 rounded-lg border border-slate-200">
         <p className="text-slate-500 text-sm px-4 text-center">No expense data yet. Add a transaction to see the breakdown.</p>
@@ -37,7 +54,7 @@ const PieChart = ({ data, onSliceClick }) => { // Added onSliceClick prop
           label: (context) => {
             const label = context.label || '';
             const value = context.parsed || 0;
-            return ` ${label}: ₹${value.toLocaleString('en-IN')}`;
+            return ` ${label}: ${formatCurrency(value, region, currencyCode)}`;
           }
         }
       }
@@ -48,11 +65,11 @@ const PieChart = ({ data, onSliceClick }) => { // Added onSliceClick prop
   };
 
   const chartData = {
-    labels: data.map(d => d.categoryName),
+    labels: normalizedData.map(d => d.categoryName),
     datasets: [
       {
         label: "Expense by Category",
-        data: data.map(d => d.totalAmount),
+        data: normalizedData.map(d => d.totalAmount),
         backgroundColor: [
           "#f87171", "#fbbf24", "#34d399", "#60a5fa", "#a78bfa", "#f472b6", "#94a3b8"
         ],

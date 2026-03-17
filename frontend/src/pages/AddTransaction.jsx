@@ -1,6 +1,6 @@
 // src/pages/AddTransaction.jsx
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { toast } from "react-toastify";
 import { getCategories, addTransaction } from "../services/api";
 import ReceiptScanner from "../components/ReceiptScanner";
@@ -26,6 +26,14 @@ const AddTransaction = () => {
   useEffect(() => {
     fetchCategories();
   }, []);
+
+  useEffect(() => {
+    if (!form.category) return;
+    const selected = categories.find((category) => category._id === form.category);
+    if (selected && selected.type !== form.type) {
+      setForm((prev) => ({ ...prev, category: "" }));
+    }
+  }, [form.type, form.category, categories]);
 
   const fetchCategories = async () => {
     try {
@@ -114,6 +122,8 @@ const AddTransaction = () => {
     }
   };
 
+  const filteredCategories = categories.filter((category) => category.type === form.type);
+
   return (
     <div className="max-w-md mx-auto p-4">
       <h2 className="text-xl font-bold mb-4">Add Transaction</h2>
@@ -162,7 +172,7 @@ const AddTransaction = () => {
           className="w-full p-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">Select Category (required)</option>
-          {categories.map((c) => (
+          {filteredCategories.map((c) => (
             <option key={c._id} value={c._id}>
               {c.name}
             </option>
@@ -235,7 +245,7 @@ const AddTransaction = () => {
                 className="w-full p-2 border rounded"
               />
               <p className="text-sm text-gray-500">
-                Leave empty for indefinite recurring (e.g., subscriptions)
+                If end date is set, all recurring entries are auto-created up to that date.
               </p>
             </div>
           )}

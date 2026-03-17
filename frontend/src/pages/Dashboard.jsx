@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import SummaryCards from "../components/SummaryCards";
 import PieChart from "../components/PieChart";
 import BarChart from "../components/BarChart";
@@ -15,18 +15,22 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   
   const [timeframe, setTimeframe] = useState("month");
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [historyYear, setHistoryYear] = useState(new Date().getFullYear() - 1);
+  const [historyMonth, setHistoryMonth] = useState("");
 
   useEffect(() => {
     fetchData();
-  }, [timeframe, selectedMonth, selectedYear]);
+  }, [timeframe, historyYear, historyMonth]);
 
   const fetchData = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const params = { timeframe, month: selectedMonth, year: selectedYear };
+      const params = { timeframe };
+      if (timeframe === "history") {
+        params.year = historyYear;
+        if (historyMonth) params.month = historyMonth;
+      }
       
       const [analyticsRes, insightsRes] = await Promise.allSettled([
         getAnalytics(params),
@@ -50,7 +54,7 @@ const Dashboard = () => {
   };
 
   const handleCategoryClick = (categoryName) => {
-    navigate(`/reports?category=${categoryName}&month=${selectedMonth}&year=${selectedYear}`);
+    navigate(`/reports?category=${categoryName}`);
   };
 
   // --- NEW: Handle Bar Chart Clicks ---
@@ -72,6 +76,28 @@ const Dashboard = () => {
   }
 
   const hasTransactions = analytics && ((analytics.categoryTotals?.length || 0) > 0 || (analytics.monthlyTotals?.length || 0) > 0);
+  const now = new Date();
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const yearOptions = Array.from({ length: 10 }, (_, index) => now.getFullYear() - index - 1);
+  const historyLabel = historyMonth
+    ? `${monthNames[Number(historyMonth) - 1]} ${historyYear}`
+    : `Year ${historyYear}`;
+
+  const viewingLabel = {
+    day: "Today",
+    week: "Current Week",
+    month: now.toLocaleString("en", { month: "long", year: "numeric" }),
+    year: `Current Year (${now.getFullYear()})`,
+    history: `Past: ${historyLabel}`,
+  };
+
+  const timeframeOptions = [
+    { value: "day", label: "DAY" },
+    { value: "week", label: "WEEK" },
+    { value: "month", label: "MONTH" },
+    { value: "year", label: "YEAR" },
+    { value: "history", label: "PAST YEARS" },
+  ];
 
   return (
     <div className="p-4 space-y-6">
@@ -79,41 +105,50 @@ const Dashboard = () => {
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
           <p className="text-sm text-slate-500">
-            Viewing: {timeframe === 'month' ? `${new Date(0, selectedMonth - 1).toLocaleString('en', {month: 'long'})} ${selectedYear}` : selectedYear}
+            Viewing: {viewingLabel[timeframe]}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex gap-2">
-             {timeframe === 'month' && (
-               <select 
-                value={selectedMonth} 
-                onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                className="text-xs border border-slate-200 rounded px-2 py-1 bg-white outline-none"
-               >
-                 {Array.from({length: 12}, (_, i) => (
-                   <option key={i+1} value={i+1}>{new Date(0, i).toLocaleString('en', {month: 'short'})}</option>
-                 ))}
-               </select>
-             )}
-             <input 
-              type="number" 
-              value={selectedYear} 
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="w-20 text-xs border border-slate-200 rounded px-2 py-1 bg-white outline-none"
-             />
-          </div>
+          {timeframe === "history" && (
+            <>
+              <select
+                value={historyYear}
+                onChange={(e) => setHistoryYear(Number(e.target.value))}
+                className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-md bg-white text-slate-700 outline-none"
+              >
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={historyMonth}
+                onChange={(e) => setHistoryMonth(e.target.value)}
+                className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-md bg-white text-slate-700 outline-none"
+              >
+                <option value="">ALL MONTHS</option>
+                {monthNames.map((m, index) => (
+                  <option key={m} value={index + 1}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
 
           <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
-            {['day', 'week', 'month', 'year'].map((t) => (
+            {timeframeOptions.map((option) => (
               <button
-                key={t}
-                onClick={() => setTimeframe(t)}
+                key={option.value}
+                onClick={() => setTimeframe(option.value)}
                 className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-all ${
-                  timeframe === t ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                  timeframe === option.value ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
                 }`}
               >
-                {t.toUpperCase()}
+                {option.label}
               </button>
             ))}
           </div>
