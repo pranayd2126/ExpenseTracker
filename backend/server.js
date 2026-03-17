@@ -29,7 +29,14 @@ app.use("/api/ai", aiRoutes);
 
 async function connectDB() {
   try {
-    await mongoose.connect(process.env.MONGO_URL);
+    const mongoUrl = process.env.MONGO_URL?.trim();
+    if (!mongoUrl) {
+      throw new Error("MONGO_URL is missing in backend/.env");
+    }
+
+    await mongoose.connect(mongoUrl, {
+      serverSelectionTimeoutMS: 15000,
+    });
     console.log("Connected to MongoDB");
     await seedDefaultCategories();
     app.listen(process.env.PORT || 5000, () => {
@@ -37,6 +44,23 @@ async function connectDB() {
     });
   } catch (error) {
     console.error("Error connecting to MongoDB:", error);
+
+    const sslErrorCode = error?.cause?.code || error?.code;
+    if (sslErrorCode === "ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR") {
+      console.error("Atlas TLS handshake failed. Check these:");
+      console.error("1) Atlas Network Access includes your current IP");
+      console.error("2) DB user credentials in MONGO_URL are correct");
+      console.error("3) Antivirus/proxy is not intercepting TLS traffic");
+      console.error("4) Try a mobile hotspot/VPN to rule out ISP/router filtering");
+    }
+
+    if (error?.code === 8000 || error?.codeName === "AtlasError") {
+      console.error("Atlas authentication failed. Check these:");
+      console.error("1) Username/password in MONGO_URL exactly match Atlas Database Access user");
+      console.error("2) If password has special chars (@ : / ? #), URL-encode it");
+      console.error("3) Ensure the DB user has at least readWrite role for your database");
+      console.error("4) Use Atlas-generated connection string and replace only <username>/<password>");
+    }
   }
 }
 connectDB();
