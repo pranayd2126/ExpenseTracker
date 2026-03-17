@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom"; // Added for navigation support
 import { getTransactions, updateTransaction, deleteTransaction, getCategories } from "../services/api";
 
 function formatDate(value) {
@@ -17,17 +18,27 @@ function formatCurrency(value) {
 }
 
 function Reports() {
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+
+  // --- Initial URL State ---
+  // We check if values exist in the URL (from Dashboard clicks), otherwise use defaults
+  const initialType = queryParams.get("type") || "all";
+  const initialCat = queryParams.get("category") || "all";
+  const initialMonth = queryParams.get("month") || "";
+  const initialYear = Number(queryParams.get("year")) || new Date().getFullYear();
+
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]); 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   
   // --- Filters ---
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [catFilter, setCatFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState(initialType);
+  const [catFilter, setCatFilter] = useState(initialCat);
   const [sortOrder, setSortOrder] = useState("desc");
-  const [selectedMonth, setSelectedMonth] = useState(""); // "" is Full Year
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
+  const [selectedYear, setSelectedYear] = useState(initialYear);
 
   // --- Edit Mode ---
   const [editingId, setEditingId] = useState(null);
@@ -36,16 +47,18 @@ function Reports() {
   });
   const [statusMessage, setStatusMessage] = useState("");
 
-  // Re-fetch when any filter changes
+  useEffect(() => {
+    // Load categories first so we can map Names to IDs if needed
+    loadCategories();
+  }, []);
+
   useEffect(() => {
     fetchTransactions();
-    loadCategories();
-  }, [typeFilter, catFilter, sortOrder, selectedMonth, selectedYear]);
+  }, [typeFilter, catFilter, sortOrder, selectedMonth, selectedYear, categories]);
 
   const loadCategories = async () => {
     try {
       const res = await getCategories();
-      // Accessing res.data.categories based on your backend response structure
       const data = res.data?.categories || [];
       setCategories(data);
     } catch (err) { console.error("Dropdown Error", err); }
@@ -54,13 +67,21 @@ function Reports() {
   const fetchTransactions = async () => {
     setIsLoading(true);
     try {
+      // Logic to handle Dashboard click: 
+      // If catFilter is a Name (e.g. "Food"), find its ID. If it's already "all" or an ID, use it.
+      let categoryId = catFilter;
+      if (catFilter !== "all" && categories.length > 0) {
+        const found = categories.find(c => c.name === catFilter || c._id === catFilter);
+        if (found) categoryId = found._id;
+      }
+
       const params = {
         sort: sortOrder === "desc" ? "-date" : "date",
         year: selectedYear,
       };
 
       if (typeFilter !== "all") params.type = typeFilter;
-      if (catFilter !== "all") params.category = catFilter;
+      if (categoryId !== "all") params.category = categoryId;
       if (selectedMonth) params.month = selectedMonth;
 
       const res = await getTransactions(params);
@@ -104,7 +125,6 @@ function Reports() {
 
   return (
     <div className="space-y-6 pb-10 px-2">
-      {/* Success Notification */}
       {statusMessage && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-2 rounded-full shadow-2xl z-50 text-sm font-medium">
           {statusMessage}
@@ -124,7 +144,11 @@ function Reports() {
 
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Category</label>
-          <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="border rounded-lg p-2 text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500">
+          <select 
+            value={categories.some(c => c.name === catFilter) ? categories.find(c => c.name === catFilter)?._id : catFilter} 
+            onChange={(e) => setCatFilter(e.target.value)} 
+            className="border rounded-lg p-2 text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500"
+          >
             <option value="all">All Categories</option>
             {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
           </select>
