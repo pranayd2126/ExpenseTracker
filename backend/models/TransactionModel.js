@@ -49,6 +49,11 @@ const transactionSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    recurringGroupId: {
+      type: String,
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,

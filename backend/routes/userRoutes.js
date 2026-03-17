@@ -8,6 +8,7 @@ import {
   getUserById,
   getUserProfile,
   updateUser,
+  exportBackup,
 } from "../controllers/userController.js";
 import { protect } from "../middleware/verifyToken.js";
 
@@ -20,6 +21,7 @@ router.post("/logout", logout);
 
 // Protected routes
 router.post("/changePassword", protect, changePassword);
+router.get("/backup", protect, exportBackup);
 router.get("/profile", protect, getUserProfile);
 router.put("/profile", protect, updateUser);
 router.get("/all", protect, getAllUsers);

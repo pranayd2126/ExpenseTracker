@@ -2,11 +2,11 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 import { useState } from "react";
-import { FaChartPie, FaPlusCircle, FaFileAlt, FaBars, FaTimes } from "react-icons/fa";
+import { FaChartPie, FaPlusCircle, FaFileAlt, FaBars, FaTimes, FaCog, FaMoon, FaSun } from "react-icons/fa";
 
 function Header() {
   const navigate = useNavigate();
-  const { logoutUser, user } = useAuth();
+  const { logoutUser, user, theme, setTheme } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -54,6 +54,18 @@ function Header() {
             <FaFileAlt /> Reports
           </NavLink>
 
+          <NavLink to="/settings" className={linkClass}>
+            <FaCog /> Settings
+          </NavLink>
+
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="rounded-full border border-slate-600 px-3 py-1 text-sm hover:bg-slate-800"
+            title="Toggle theme"
+          >
+            {theme === "dark" ? <FaSun /> : <FaMoon />}
+          </button>
+
           <button
             onClick={handleLogout}
             className="rounded-full border border-slate-600 px-4 py-1 text-sm hover:bg-slate-800"
@@ -85,6 +97,17 @@ function Header() {
           <NavLink to="/reports" className={linkClass} onClick={() => setMenuOpen(false)}>
             <FaFileAlt /> Reports
           </NavLink>
+
+          <NavLink to="/settings" className={linkClass} onClick={() => setMenuOpen(false)}>
+            <FaCog /> Settings
+          </NavLink>
+
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="text-left border border-slate-600 px-4 py-2 rounded hover:bg-slate-800"
+          >
+            {theme === "dark" ? "Switch to Light" : "Switch to Dark"}
+          </button>
 
           <button
             onClick={handleLogout}

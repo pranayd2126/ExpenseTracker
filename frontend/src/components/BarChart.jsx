@@ -1,10 +1,16 @@
 import React from "react";
 import { Bar } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend } from "chart.js";
+import { useAuth } from "../context/AuthContext";
+import { formatCurrency } from "../utils/currency";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
 const BarChart = ({ data, onBarClick }) => {
+  const { user } = useAuth();
+  const region = user?.region || "en-IN";
+  const currencyCode = user?.currencyCode || "INR";
+
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center h-80 bg-slate-50 rounded-lg border border-slate-200">
@@ -37,7 +43,7 @@ const BarChart = ({ data, onBarClick }) => {
           label: (context) => {
             const label = context.dataset.label || '';
             const value = context.parsed.y || 0;
-            return ` ${label}: ₹${value.toLocaleString('en-IN')}`;
+            return ` ${label}: ${formatCurrency(value, region, currencyCode)}`;
           }
         }
       }

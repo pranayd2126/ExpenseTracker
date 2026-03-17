@@ -32,7 +32,11 @@
 
   export const getCategories = async (req, res) => {
     try {
+        const { type } = req.query;
+        const typeFilter = ["income", "expense"].includes(type) ? { type } : {};
+
       const categories = await Category.find({
+          ...typeFilter,
         $or: [{ isDefault: true }, { userId: req.userId }],
       });
 
@@ -53,6 +57,7 @@
   export const addCategory = async (req, res) => {
     try {
       const { name, type } = req.body;
+      const MAX_CUSTOM_CATEGORIES = 10;
 
       if (!name || !type) {
         return res.status(400).json({
@@ -77,6 +82,14 @@
         return res.status(409).json({
           success: false,
           message: "Category with this name already exists",
+        });
+      }
+
+      const customCount = await Category.countDocuments({ userId: req.userId, isDefault: false });
+      if (customCount >= MAX_CUSTOM_CATEGORIES) {
+        return res.status(400).json({
+          success: false,
+          message: `You can create up to ${MAX_CUSTOM_CATEGORIES} custom categories only`,
         });
       }
 

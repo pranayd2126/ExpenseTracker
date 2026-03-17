@@ -1,6 +1,8 @@
 // src/components/Insights.jsx
 import React from "react";
 import { FiTrendingUp, FiTrendingDown, FiMinus, FiAlertCircle, FiCheckCircle } from "react-icons/fi";
+import { useAuth } from "../context/AuthContext";
+import { formatCurrency } from "../utils/currency";
 
 const trendIcon = {
   increasing: <FiTrendingUp className="text-red-500" size={18} />,
@@ -9,6 +11,10 @@ const trendIcon = {
 };
 
 const Insights = ({ data }) => {
+  const { user } = useAuth();
+  const region = user?.region || "en-IN";
+  const currencyCode = user?.currencyCode || "INR";
+
   if (!data) return null;
 
   return (
@@ -21,8 +27,8 @@ const Insights = ({ data }) => {
         </h2>
         <p className="text-gray-700 text-sm">{data.suggestion}</p>
         <div className="mt-3 flex flex-wrap gap-4 text-sm">
-          <span className="text-green-700 font-medium">Income: ₹{data.totalIncome?.toLocaleString()}</span>
-          <span className="text-red-700 font-medium">Expense: ₹{data.totalExpense?.toLocaleString()}</span>
+          <span className="text-green-700 font-medium">Income: {formatCurrency(data.totalIncome, region, currencyCode)}</span>
+          <span className="text-red-700 font-medium">Expense: {formatCurrency(data.totalExpense, region, currencyCode)}</span>
         </div>
         {data.savingsGoal && (
           <p className="text-xs text-blue-600 mt-2">💡 Suggested savings goal: <strong>{data.savingsGoal}</strong></p>
@@ -57,7 +63,7 @@ const Insights = ({ data }) => {
             Next Month Prediction
           </h3>
           <p className="text-3xl font-bold text-purple-700">
-            ₹{Number(data.prediction).toLocaleString()}
+            {formatCurrency(Number(data.prediction), region, currencyCode)}
           </p>
           <div className="flex gap-4 mt-2 text-xs text-gray-500">
             {data.trend && <span className="capitalize">Trend: {data.trend}</span>}

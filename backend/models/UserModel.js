@@ -44,6 +44,27 @@ const userSchema = new Schema(
       type: Boolean,
       default: true,
     },
+    country: {
+      type: String,
+      default: "India",
+      trim: true,
+    },
+    region: {
+      type: String,
+      default: "en-IN",
+      trim: true,
+    },
+    currencyCode: {
+      type: String,
+      default: "INR",
+      uppercase: true,
+      trim: true,
+    },
+    theme: {
+      type: String,
+      enum: ["light", "dark"],
+      default: "light",
+    },
   },
   {
     timestamps: true,

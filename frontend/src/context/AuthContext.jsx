@@ -11,11 +11,22 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [theme, setTheme] = useState(() => localStorage.getItem("appTheme") || "light");
+
+  const applyTheme = (nextTheme) => {
+    const resolved = nextTheme === "dark" ? "dark" : "light";
+    setTheme(resolved);
+    localStorage.setItem("appTheme", resolved);
+    document.documentElement.classList.toggle("dark", resolved === "dark");
+  };
 
   const refreshUser = async () => {
     try {
       const { data } = await getProfile();
       setUser(data.data);
+      if (data.data?.theme) {
+        applyTheme(data.data.theme);
+      }
       return data.data;
     } catch {
       setUser(null);
@@ -26,6 +37,7 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
+    applyTheme(theme);
     refreshUser();
   }, []);
 
@@ -56,6 +68,8 @@ export function AuthProvider({ children }) {
         logoutUser,
         refreshUser,
         registerUser,
+        theme,
+        setTheme: applyTheme,
       }}
     >
       {children}

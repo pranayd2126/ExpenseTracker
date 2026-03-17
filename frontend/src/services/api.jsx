@@ -42,3 +42,5 @@ export const login    = (data) => axiosInstance.post("/users/login", data);
 export const logout   = ()     => axiosInstance.post("/users/logout");
 export const getProfile  = ()     => axiosInstance.get("/users/profile");
 export const updateProfile = (data) => axiosInstance.put("/users/profile", data);
+export const changePassword = (data) => axiosInstance.post("/users/changePassword", data);
+export const exportBackup = () => axiosInstance.get("/users/backup", { responseType: "blob" });
