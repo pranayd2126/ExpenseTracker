@@ -7,6 +7,7 @@ import ReceiptScanner from "../components/ReceiptScanner";
 
 const AddTransaction = () => {
   const navigate = useNavigate();
+  const today = new Date().toISOString().slice(0, 10);
   const [categories, setCategories] = useState([]);
   const [showScanner, setShowScanner] = useState(false);
   const [scannerKey, setScannerKey] = useState(0);
@@ -17,7 +18,7 @@ const AddTransaction = () => {
     category: "",
     title: "",
     note: "",
-    date: new Date().toISOString().slice(0, 10),
+    date: today,
     isRecurring: false,
     recurringInterval: "",
     recurringEndDate: ""
@@ -84,6 +85,18 @@ const AddTransaction = () => {
         return;
       }
 
+      if (form.date > today) {
+        toast.error("Transaction date cannot be in the future");
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (form.recurringEndDate && form.recurringEndDate > today) {
+        toast.error("Recurring end date cannot be in the future");
+        setIsSubmitting(false);
+        return;
+      }
+
       try {
       const payload = {
         ...form,
@@ -103,7 +116,7 @@ const AddTransaction = () => {
         category: "",
         title: "",
         note: "",
-        date: new Date().toISOString().slice(0, 10),
+        date: today,
         isRecurring: false,
         recurringInterval: "",
         recurringEndDate: ""
@@ -202,6 +215,7 @@ const AddTransaction = () => {
           name="date"
           value={form.date}
           onChange={handleChange}
+          max={today}
           className="w-full p-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
@@ -242,6 +256,7 @@ const AddTransaction = () => {
                 name="recurringEndDate"
                 value={form.recurringEndDate}
                 onChange={handleChange}
+                max={today}
                 className="w-full p-2 border rounded"
               />
               <p className="text-sm text-gray-500">
