@@ -13,17 +13,22 @@ const Dashboard = () => {
   const [aiInsights, setAiInsights] = useState(null);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // State for filtering: 'day', 'week', 'month', 'year'
+  const [timeframe, setTimeframe] = useState("month");
 
+  // Re-fetch data whenever the timeframe changes
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [timeframe]);
 
   const fetchData = async () => {
     setIsLoading(true);
     setError(null);
     try {
+      // Passing the timeframe as a param to getAnalytics
       const [analyticsRes, insightsRes] = await Promise.allSettled([
-        getAnalytics(),
+        getAnalytics({ timeframe }),
         getInsights(),
       ]);
 
@@ -72,27 +77,48 @@ const Dashboard = () => {
     );
   }
 
-  if (!analytics) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-slate-600">No data available.</div>
-      </div>
-    );
-  }
-
-  const hasTransactions = (analytics.categoryTotals?.length || 0) > 0 || (analytics.monthlyTotals?.length || 0) > 0;
+  const hasTransactions = analytics && ((analytics.categoryTotals?.length || 0) > 0 || (analytics.monthlyTotals?.length || 0) > 0);
 
   return (
     <div className="p-4 space-y-6">
-      <SummaryCards
-        income={analytics.income || 0}
-        expense={analytics.expense || 0}
-        balance={analytics.balance || 0}
-      />
+      {/* Dashboard Header with Filter Controls */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+          <p className="text-sm text-slate-500">Overview of your finances</p>
+        </div>
 
-      {!hasTransactions && (
+        {/* Timeframe Filter Buttons */}
+        <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 shadow-sm">
+          {['day', 'week', 'month', 'year'].map((t) => (
+            <button
+              key={t}
+              onClick={() => setTimeframe(t)}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 ${
+                timeframe === t 
+                ? "bg-white text-blue-600 shadow-sm" 
+                : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              {t.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Analytics Summary */}
+      {analytics && (
+        <SummaryCards
+          income={analytics.income || 0}
+          expense={analytics.expense || 0}
+          balance={analytics.balance || 0}
+          selectedFilter={timeframe}
+        />
+      )}
+
+      {!hasTransactions && !isLoading && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
-          <p className="text-blue-800 font-medium mb-3">Get started with your first transaction</p>
+          <p className="text-blue-800 font-medium mb-3">No transactions found for this period.</p>
           <Link
             to="/add"
             className="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
@@ -103,19 +129,26 @@ const Dashboard = () => {
       )}
 
       {hasTransactions && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-slate-700">Category Distribution</h3>
-            <PieChart data={analytics.categoryTotals} />
-          </section>
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-slate-700">Monthly Trend</h3>
-            <BarChart data={analytics.monthlyTotals} />
-          </section>
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="mb-3 text-sm font-semibold text-slate-700 uppercase tracking-wider">
+                Category Distribution
+              </h3>
+              <PieChart data={analytics.categoryTotals} />
+            </section>
+            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="mb-3 text-sm font-semibold text-slate-700 uppercase tracking-wider">
+                Spending Trend
+              </h3>
+              <BarChart data={analytics.monthlyTotals} />
+            </section>
+          </div>
+
+          <BudgetProgress analytics={analytics} />
+        </>
       )}
 
-      {hasTransactions && <BudgetProgress analytics={analytics} />}
       {aiInsights && <Insights data={aiInsights} />}
     </div>
   );
