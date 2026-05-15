@@ -1,0 +1,46 @@
+### create a user
+POST http://localhost:8080/api/users/register
+Content-Type: application/json
+
+{
+    "firstName": "Test",
+  "username": "testuser",
+  "email": "testuser@gmail.com",
+  "password": "testpassword"    
+}
+
+### login user
+POST http://localhost:8080/api/users/login
+Content-Type: application/json
+
+{
+  "email": "testuser@gmail.com",
+  "password": "testpassword"
+}
+
+### create a category
+POST http://localhost:8080/api/categories
+Content-Type: application/json
+
+{
+  "name": "Test Category",
+  "type": "expense"
+} 
+
+###get all categories
+GET http://localhost:8080/api/categories   
+
+### create an expense
+POST http://localhost:8080/api/expenses
+Content-Type: application/json
+
+{
+  "amount": 100,
+  "category": "69b8d29a908324196b439202" ,
+  "type": "expense",
+    "date": "2024-06-01T00:00:00.000Z"
+}
+
+
+###logout user
+POST http://localhost:8080/api/users/logout
