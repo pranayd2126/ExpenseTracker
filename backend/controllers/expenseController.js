@@ -15,6 +15,12 @@ const addIntervalToDate = (date, interval) => {
 
 const isValidDate = (value) => value instanceof Date && !Number.isNaN(value.getTime());
 
+const isFutureDate = (value) => {
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+  return value.getTime() > endOfToday.getTime();
+};
+
 const toNullableDate = (value) => {
   if (value === undefined) return undefined;
   if (value === null || value === "") return null;
@@ -135,12 +141,13 @@ export const getAllTransactions = async (req, res) => {
       if (endDate) filter.date.$lte = new Date(endDate);
     }
 
-    // Dynamic Sort: Latest (-date) or Oldest (date)
-    const sortOption = sort || "-date";
+    // Dynamic Sort: Latest (-date) or Oldest (date), with createdAt as tie-breaker within same date
+    const dateSort = sort === "date" ? 1 : -1;
+    const createdAtSort = sort === "date" ? 1 : -1;
 
     const transactions = await Transaction.find(filter)
       .populate("category", "name type")
-      .sort(sortOption);
+      .sort({ date: dateSort, createdAt: createdAtSort });
 
     res.status(200).json({
       success: true,
@@ -162,6 +169,10 @@ export const addTransaction = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid transaction date" });
     }
 
+    if (isFutureDate(baseDate)) {
+      return res.status(400).json({ success: false, message: "Transaction date cannot be in the future" });
+    }
+
     const txData = {
       userId: req.userId,
       amount: parseFloat(amount),
@@ -180,6 +191,10 @@ export const addTransaction = async (req, res) => {
       const endDate = recurringEndDate ? new Date(recurringEndDate) : null;
       if (endDate && !isValidDate(endDate)) {
         return res.status(400).json({ success: false, message: "Invalid recurring end date" });
+      }
+
+      if (endDate && isFutureDate(endDate)) {
+        return res.status(400).json({ success: false, message: "Recurring end date cannot be in the future" });
       }
 
       if (endDate && endDate < baseDate) {
@@ -238,9 +253,17 @@ export const updateTransaction = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid transaction date" });
     }
 
+    if (parsedDate && isFutureDate(parsedDate)) {
+      return res.status(400).json({ success: false, message: "Transaction date cannot be in the future" });
+    }
+
     const parsedEndDate = toNullableDate(req.body.recurringEndDate);
     if (parsedEndDate === "invalid") {
       return res.status(400).json({ success: false, message: "Invalid recurring end date" });
+    }
+
+    if (parsedEndDate && isFutureDate(parsedEndDate)) {
+      return res.status(400).json({ success: false, message: "Recurring end date cannot be in the future" });
     }
 
     const updateDoc = {

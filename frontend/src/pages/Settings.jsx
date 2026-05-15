@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -28,7 +29,8 @@ const CURRENCY_OPTIONS = [
 ];
 
 function Settings() {
-  const { user, refreshUser, theme, setTheme } = useAuth();
+  const navigate = useNavigate();
+  const { user, refreshUser, logoutUser, theme, setTheme } = useAuth();
   const [profileForm, setProfileForm] = useState({
     firstName: "",
     lastName: "",
@@ -131,8 +133,10 @@ function Settings() {
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
       });
+      await logoutUser();
       setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
       toast.success("Password changed. Please login again.");
+      navigate("/login", { replace: true });
     } catch (error) {
       toast.error(error?.response?.data?.message || "Unable to change password");
     } finally {

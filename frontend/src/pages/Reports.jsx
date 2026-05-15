@@ -14,6 +14,7 @@ function formatDate(value) {
 function Reports() {
   const location = useLocation();
   const { user } = useAuth();
+  const today = new Date().toISOString().split('T')[0];
   const queryParams = new URLSearchParams(location.search);
 
   // --- Initial URL State ---
@@ -113,6 +114,16 @@ function Reports() {
   };
 
   const handleUpdate = async (id) => {
+    if (editForm.date > today) {
+      alert("Transaction date cannot be in the future.");
+      return;
+    }
+
+    if (editForm.recurringEndDate && editForm.recurringEndDate > today) {
+      alert("Recurring end date cannot be in the future.");
+      return;
+    }
+
     try {
       const payload = {
         ...editForm,
@@ -241,7 +252,7 @@ function Reports() {
                   <tr key={item._id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 text-slate-500">
                       {editingId === item._id ? (
-                        <input type="date" className="border rounded p-1 text-xs" value={editForm.date} onChange={(e) => setEditForm({...editForm, date: e.target.value})} />
+                        <input type="date" max={today} className="border rounded p-1 text-xs" value={editForm.date} onChange={(e) => setEditForm({...editForm, date: e.target.value})} />
                       ) : formatDate(item.date)}
                     </td>
                     <td className="px-6 py-4 font-medium text-slate-800">
@@ -290,6 +301,7 @@ function Reports() {
                               </select>
                               <input
                                 type="date"
+                                max={today}
                                 className="border rounded px-2 py-1 w-full text-xs"
                                 value={editForm.recurringEndDate || ""}
                                 onChange={(e) => setEditForm({ ...editForm, recurringEndDate: e.target.value })}
