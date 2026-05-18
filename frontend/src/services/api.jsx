@@ -36,6 +36,12 @@ export const getInsights = () => axiosInstance.get("/ai/suggestions");
 // Prediction only
 export const predictExpenses = () => axiosInstance.get("/ai/predict");
 
+// CSV Import
+export const importTransactions = (formData) =>
+  axiosInstance.post("/ai/import", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 export const register = (data) => axiosInstance.post("/users/register", data);
 export const login    = (data) => axiosInstance.post("/users/login", data);
@@ -43,4 +49,4 @@ export const logout   = ()     => axiosInstance.post("/users/logout");
 export const getProfile  = ()     => axiosInstance.get("/users/profile");
 export const updateProfile = (data) => axiosInstance.put("/users/profile", data);
 export const changePassword = (data) => axiosInstance.post("/users/changePassword", data);
-export const exportBackup = () => axiosInstance.get("/users/backup", { responseType: "blob" });
+export const exportBackup = (format = "json") => axiosInstance.get(`/users/backup?format=${format}`, { responseType: "blob" });

@@ -207,7 +207,7 @@ function Reports() {
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Sort By</label>
           <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="border rounded-lg p-2 text-sm font-semibold text-blue-600 bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="desc">Latest First</option>
+            <option value="desc">Newest First</option>
             <option value="asc">Oldest First</option>
           </select>
         </div>

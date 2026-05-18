@@ -1,1 +1,32 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  .dark .bg-white {
+    background-color: var(--color-slate-800) !important;
+    color: var(--color-slate-100);
+  }
+  .dark .bg-slate-50 {
+    background-color: var(--color-slate-900) !important;
+  }
+  .dark .border-slate-200 {
+    border-color: var(--color-slate-700) !important;
+  }
+  .dark .text-slate-900,
+  .dark .text-slate-800,
+  .dark .text-slate-700 {
+    color: var(--color-slate-100) !important;
+  }
+  .dark .text-slate-600,
+  .dark .text-slate-500 {
+    color: var(--color-slate-300) !important;
+  }
+  .dark input,
+  .dark select,
+  .dark textarea {
+    background-color: var(--color-slate-900) !important;
+    color: var(--color-slate-100) !important;
+    border-color: var(--color-slate-700) !important;
+  }
+}

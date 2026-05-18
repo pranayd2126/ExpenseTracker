@@ -3,6 +3,7 @@ import RootLayout from "./layouts/RootLayout";
 import Dashboard from "./pages/Dashboard";
 import AddTransaction from "./pages/AddTransaction";
 import Reports from "./pages/Reports";
+import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -27,6 +28,7 @@ const router = createBrowserRouter([
           { index: true, element: <Dashboard /> },
           { path: "/add", element: <AddTransaction /> },
           { path: "/reports", element: <Reports /> },
+          { path: "/profile", element: <Profile /> },
           { path: "/settings", element: <Settings /> },
         ],
       },

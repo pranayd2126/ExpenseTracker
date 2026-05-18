@@ -2,6 +2,8 @@ import OpenAI from "openai";
 import Transaction from "../models/TransactionModel.js";
 import Category from "../models/categorySchema.js";
 import AICache from "../models/AICacheModel.js";
+import csv from "csv-parser";
+import { Readable } from "stream";
 
 // ─── Two separate LLM clients (plug in your own keys/endpoints) ───────────────
 
@@ -434,6 +436,110 @@ Predict total expense for next month. Respond ONLY with this JSON (no markdown, 
     res.status(500).json({
       success: false,
       message: "Error predicting expenses.",
+      error: error.message,
+    });
+  }
+};
+
+// ─── CSV Import ───────────────────────────────────────────────────────────────
+export const importTransactions = async (req, res) => {
+  try {
+    const textClient = getTextClient();
+
+    if (!textClient) {
+      return res.status(500).json({
+        success: false,
+        message: "AI is not configured on the server. Cannot auto-categorize.",
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No CSV file uploaded." });
+    }
+
+    const results = [];
+    await new Promise((resolve, reject) => {
+      Readable.from(req.file.buffer)
+        .pipe(csv())
+        .on("data", (data) => results.push(data))
+        .on("end", resolve)
+        .on("error", reject);
+    });
+
+    if (results.length === 0) {
+      return res.status(400).json({ success: false, message: "CSV file is empty or invalid." });
+    }
+
+    if (results.length > 100) {
+      return res.status(400).json({ success: false, message: "Please upload a maximum of 100 rows at a time to prevent AI timeouts." });
+    }
+
+    const categories = await Category.find({
+      $or: [{ isDefault: true }, { userId: req.userId }],
+    });
+    const categoryList = categories
+      .map((c) => `${c._id}:${c.name}(${c.type})`)
+      .join(", ");
+
+    const fallbackCategoryId = categories.find(c => c.name.toLowerCase() === "other" || c.name.toLowerCase() === "general")?._id || categories[0]?._id;
+
+    const prompt = `You are a financial AI. I have a list of transactions in JSON format parsed from a CSV.
+Your job is to analyze the columns of each transaction, and assign the best fitting category ID from this list:
+${categoryList}
+
+Transactions:
+${JSON.stringify(results.map((r, i) => ({ id: i, ...r })))}
+
+Return ONLY a valid JSON object with a single key "categorized" containing an array of objects.
+Each object must have:
+- "title": <the transaction title, reason, or description>
+- "amount": <the amount as a positive number>
+- "type": <"income" or "expense" (default to expense if unclear)>
+- "date": <the date in YYYY-MM-DD, or today's date if missing/invalid>
+- "note": <any extra info or the original reason>
+- "categoryId": <the single best matching ID from the list>
+`;
+
+    const response = await textClient.chat.completions.create({
+      model: process.env.TEXT_LLM_MODEL || "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      max_tokens: 3000,
+    });
+
+    const raw = extractMessageText(response.choices[0]?.message?.content);
+    let parsed;
+    try {
+      parsed = parseJSON(raw);
+    } catch {
+      return res.status(500).json({ success: false, message: "AI returned an invalid response. Please try a simpler CSV." });
+    }
+
+    const categorized = parsed.categorized || [];
+    const transactionsToInsert = categorized.map(t => ({
+      userId: req.userId,
+      amount: Number(t.amount) || 0,
+      type: (t.type || "expense").toLowerCase() === "income" ? "income" : "expense",
+      title: t.title || "Imported Transaction",
+      note: t.note || "",
+      date: t.date && !isNaN(new Date(t.date).getTime()) ? new Date(t.date) : new Date(),
+      category: categories.find(c => c._id.toString() === String(t.categoryId))?._id || fallbackCategoryId
+    }));
+
+    if (transactionsToInsert.length > 0) {
+      await Transaction.insertMany(transactionsToInsert);
+      await invalidateUserAICache(req.userId);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully imported and categorized ${transactionsToInsert.length} transactions.`,
+    });
+  } catch (error) {
+    console.error("CSV Import error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error importing CSV.",
       error: error.message,
     });
   }
