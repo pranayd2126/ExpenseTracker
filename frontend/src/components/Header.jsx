@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 import { useState } from "react";
-import { FaChartPie, FaPlusCircle, FaFileAlt, FaBars, FaTimes, FaCog, FaMoon, FaSun } from "react-icons/fa";
+import { FaChartPie, FaPlusCircle, FaFileAlt, FaBars, FaTimes, FaCog, FaMoon, FaSun, FaUserCircle } from "react-icons/fa";
 
 function Header() {
   const navigate = useNavigate();
@@ -54,6 +54,10 @@ function Header() {
             <FaFileAlt /> Reports
           </NavLink>
 
+          <NavLink to="/profile" className={linkClass}>
+            <FaUserCircle /> Profile
+          </NavLink>
+
           <NavLink to="/settings" className={linkClass}>
             <FaCog /> Settings
           </NavLink>
@@ -96,6 +100,10 @@ function Header() {
 
           <NavLink to="/reports" className={linkClass} onClick={() => setMenuOpen(false)}>
             <FaFileAlt /> Reports
+          </NavLink>
+
+          <NavLink to="/profile" className={linkClass} onClick={() => setMenuOpen(false)}>
+            <FaUserCircle /> Profile
           </NavLink>
 
           <NavLink to="/settings" className={linkClass} onClick={() => setMenuOpen(false)}>
