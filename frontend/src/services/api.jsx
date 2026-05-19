@@ -1,7 +1,8 @@
 // src/services/api.jsx
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/api";
+// Automatically use localhost in development, and the Render URL in production
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:5000/api" : "https://expensetracker-icuy.onrender.com/api");
 
 const axiosInstance = axios.create({
   baseURL: API_URL,
