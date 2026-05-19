@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 import {
   updateProfile,
-  changePassword,
   exportBackup,
   getCategories,
   addCategory,
   deleteCategory,
+  importTransactions,
 } from "../services/api";
+import { FaFilePdf, FaFileCsv, FaFileExcel, FaFileCode, FaUpload } from "react-icons/fa";
 
 const REGION_OPTIONS = [
   { value: "en-IN", label: "India (en-IN)" },
@@ -29,28 +29,21 @@ const CURRENCY_OPTIONS = [
 ];
 
 function Settings() {
-  const navigate = useNavigate();
-  const { user, refreshUser, logoutUser, theme, setTheme } = useAuth();
+  const { user, refreshUser, theme, setTheme } = useAuth();
   const [profileForm, setProfileForm] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    country: "",
     region: "en-IN",
     currencyCode: "INR",
     theme: "light",
   });
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  });
+  
   const [categoryForm, setCategoryForm] = useState({ name: "", type: "expense" });
   const [categories, setCategories] = useState([]);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [isExportingBackup, setIsExportingBackup] = useState(false);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
+  
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef(null);
 
   const customCategories = useMemo(
     () => categories.filter((category) => !category.isDefault),
@@ -60,10 +53,6 @@ function Settings() {
   useEffect(() => {
     if (!user) return;
     setProfileForm({
-      firstName: user.firstName || "",
-      lastName: user.lastName || "",
-      email: user.email || "",
-      country: user.country || "India",
       region: user.region || "en-IN",
       currencyCode: user.currencyCode || "INR",
       theme: user.theme || theme || "light",
@@ -88,11 +77,6 @@ function Settings() {
     setProfileForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const onPasswordChange = (event) => {
-    const { name, value } = event.target;
-    setPasswordForm((prev) => ({ ...prev, [name]: value }));
-  };
-
   const onCategoryChange = (event) => {
     const { name, value } = event.target;
     setCategoryForm((prev) => ({ ...prev, [name]: value }));
@@ -106,56 +90,33 @@ function Settings() {
       await updateProfile(profileForm);
       setTheme(profileForm.theme);
       await refreshUser();
-      toast.success("Profile and preferences updated");
+      toast.success("App preferences updated");
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to update profile");
+      toast.error(error?.response?.data?.message || "Failed to update preferences");
     } finally {
       setIsSavingProfile(false);
     }
   };
 
-  const updatePassword = async (event) => {
-    event.preventDefault();
-
-    if (passwordForm.newPassword.length < 6) {
-      toast.error("New password must be at least 6 characters");
-      return;
-    }
-
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast.error("New password and confirm password must match");
-      return;
-    }
-
-    setIsUpdatingPassword(true);
-    try {
-      await changePassword({
-        currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword,
-      });
-      await logoutUser();
-      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
-      toast.success("Password changed. Please login again.");
-      navigate("/login", { replace: true });
-    } catch (error) {
-      toast.error(error?.response?.data?.message || "Unable to change password");
-    } finally {
-      setIsUpdatingPassword(false);
-    }
-  };
-
-  const downloadBackup = async () => {
+  const downloadBackup = async (format) => {
     setIsExportingBackup(true);
     try {
-      const response = await exportBackup();
-      const blob = new Blob([response.data], { type: "application/json" });
+      const response = await exportBackup(format);
+      
+      let mimeType = "application/json";
+      if (format === "pdf") mimeType = "application/pdf";
+      if (format === "csv") mimeType = "text/csv";
+      if (format === "excel") mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+      const blob = new Blob([response.data], { type: mimeType });
       const url = window.URL.createObjectURL(blob);
       const anchor = document.createElement("a");
 
+      const extension = format === "excel" ? "xlsx" : format;
       const fileName =
         response.headers["content-disposition"]
           ?.split("filename=")[1]
-          ?.replace(/\"/g, "") || `expense-tracker-backup-${new Date().toISOString().slice(0, 10)}.json`;
+          ?.replace(/\"/g, "") || `expense-tracker-export-${new Date().toISOString().slice(0, 10)}.${extension}`;
 
       anchor.href = url;
       anchor.download = fileName;
@@ -163,11 +124,35 @@ function Settings() {
       anchor.click();
       document.body.removeChild(anchor);
       window.URL.revokeObjectURL(url);
-      toast.success("Backup exported successfully");
+      toast.success(`Exported as ${format.toUpperCase()} successfully`);
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to export backup");
+      toast.error(error?.response?.data?.message || `Failed to export ${format.toUpperCase()}`);
     } finally {
       setIsExportingBackup(false);
+    }
+  };
+
+  const handleImport = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (file.type !== "text/csv" && !file.name.endsWith(".csv")) {
+      toast.error("Please select a valid CSV file");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    setIsImporting(true);
+    try {
+      const response = await importTransactions(formData);
+      toast.success(response.data.message || "CSV Imported successfully");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to import CSV");
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -205,68 +190,116 @@ function Settings() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Profile & Settings</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-300">Manage preferences, security, backups, and private categories.</p>
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Settings</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-300">Manage app preferences, categories, data import and export.</p>
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Personal Info & Preferences</h2>
-        <form onSubmit={saveProfile} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-          <input name="firstName" value={profileForm.firstName} onChange={onProfileChange} placeholder="First name" className="rounded-lg border border-slate-300 p-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-          <input name="lastName" value={profileForm.lastName} onChange={onProfileChange} placeholder="Last name" className="rounded-lg border border-slate-300 p-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-          <input name="email" type="email" value={profileForm.email} onChange={onProfileChange} placeholder="Email" className="rounded-lg border border-slate-300 p-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-          <input name="country" value={profileForm.country} onChange={onProfileChange} placeholder="Country" className="rounded-lg border border-slate-300 p-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-
-          <select name="region" value={profileForm.region} onChange={onProfileChange} className="rounded-lg border border-slate-300 p-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
-            {REGION_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-
-          <select name="currencyCode" value={profileForm.currencyCode} onChange={onProfileChange} className="rounded-lg border border-slate-300 p-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
-            {CURRENCY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-
-          <select name="theme" value={profileForm.theme} onChange={onProfileChange} className="rounded-lg border border-slate-300 p-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
-            <option value="light">Light Theme</option>
-            <option value="dark">Dark Theme</option>
-          </select>
-
-          <div className="md:col-span-2">
-            <button type="submit" disabled={isSavingProfile} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300">
-              {isSavingProfile ? "Saving..." : "Save Profile"}
-            </button>
+        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">App Preferences</h2>
+        <form onSubmit={saveProfile} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Region</label>
+            <select name="region" value={profileForm.region} onChange={onProfileChange} className="w-full rounded-lg border border-slate-300 p-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+              {REGION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
           </div>
-        </form>
-      </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Security</h2>
-        <form onSubmit={updatePassword} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <input type="password" name="currentPassword" value={passwordForm.currentPassword} onChange={onPasswordChange} placeholder="Current password" className="rounded-lg border border-slate-300 p-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-          <input type="password" name="newPassword" value={passwordForm.newPassword} onChange={onPasswordChange} placeholder="New password" className="rounded-lg border border-slate-300 p-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-          <input type="password" name="confirmPassword" value={passwordForm.confirmPassword} onChange={onPasswordChange} placeholder="Confirm password" className="rounded-lg border border-slate-300 p-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Currency Code</label>
+            <select name="currencyCode" value={profileForm.currencyCode} onChange={onProfileChange} className="w-full rounded-lg border border-slate-300 p-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+              {CURRENCY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Theme</label>
+            <select name="theme" value={profileForm.theme} onChange={onProfileChange} className="w-full rounded-lg border border-slate-300 p-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+              <option value="light">Light Theme</option>
+              <option value="dark">Dark Theme</option>
+            </select>
+          </div>
+
           <div className="md:col-span-3">
-            <button type="submit" disabled={isUpdatingPassword} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-rose-300">
-              {isUpdatingPassword ? "Updating..." : "Change Password"}
+            <button type="submit" disabled={isSavingProfile} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300">
+              {isSavingProfile ? "Saving..." : "Save Preferences"}
             </button>
           </div>
         </form>
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Backup</h2>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">Export your profile, categories, and transactions as a JSON backup.</p>
-        <button
-          type="button"
-          onClick={downloadBackup}
-          disabled={isExportingBackup}
-          className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
-        >
-          {isExportingBackup ? "Exporting..." : "Export Backup"}
-        </button>
+        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Data Management</h2>
+        
+        <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Export Section */}
+          <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Export Transactions</h3>
+            <p className="mt-1 mb-4 text-xs text-slate-500 dark:text-slate-400">Download your data in various formats.</p>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => downloadBackup('pdf')}
+                disabled={isExportingBackup}
+                className="flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-rose-300"
+              >
+                <FaFilePdf /> PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => downloadBackup('excel')}
+                disabled={isExportingBackup}
+                className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+              >
+                <FaFileExcel /> Excel
+              </button>
+              <button
+                type="button"
+                onClick={() => downloadBackup('csv')}
+                disabled={isExportingBackup}
+                className="flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-amber-300"
+              >
+                <FaFileCsv /> CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => downloadBackup('json')}
+                disabled={isExportingBackup}
+                className="flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                <FaFileCode /> JSON
+              </button>
+            </div>
+          </div>
+
+          {/* Import Section */}
+          <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Import Transactions</h3>
+            <p className="mt-1 mb-4 text-xs text-slate-500 dark:text-slate-400">Upload a CSV file. Our AI will automatically categorize your imports.</p>
+            
+            <div className="flex flex-col gap-3">
+              <input
+                type="file"
+                accept=".csv"
+                ref={fileInputRef}
+                onChange={handleImport}
+                className="hidden"
+                id="csv-upload"
+              />
+              <label
+                htmlFor="csv-upload"
+                className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm font-semibold text-slate-600 hover:bg-slate-100 hover:text-blue-600 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-blue-400 transition-colors ${isImporting ? 'pointer-events-none opacity-50' : ''}`}
+              >
+                <FaUpload className="text-lg" />
+                {isImporting ? "Importing Data..." : "Click to select a CSV file"}
+              </label>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
