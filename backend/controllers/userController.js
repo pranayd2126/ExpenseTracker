@@ -33,8 +33,8 @@ export const register = async (req, res) => {
 
     res.cookie("token", token, {
       httpOnly: true,
-      sameSite: "lax",
-      secure: false,
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: process.env.NODE_ENV === "production",
     });
 
     res.status(201).json({
@@ -99,8 +99,8 @@ export const login = async (req, res) => {
 
     res.cookie("token", token, {
       httpOnly: true,
-      sameSite: "lax",
-      secure: false,
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: process.env.NODE_ENV === "production",
     });
 
     res.status(200).json({
@@ -122,7 +122,7 @@ export const login = async (req, res) => {
 };
 
 export const logout = (req, res) => {
-  res.clearCookie("token", { httpOnly: true, sameSite: "lax", secure: false });
+  res.clearCookie("token", { httpOnly: true, sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", secure: process.env.NODE_ENV === "production" });
   res.status(200).json({ success: true, message: "User logged out successfully" });
 };
 
@@ -155,7 +155,7 @@ export const changePassword = async (req, res) => {
     user.password = await bcrypt.hash(newPassword, salt);
     await user.save();
 
-    res.clearCookie("token", { httpOnly: true, sameSite: "lax", secure: false });
+    res.clearCookie("token", { httpOnly: true, sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", secure: process.env.NODE_ENV === "production" });
     res.status(200).json({ success: true, message: "Password changed successfully" });
   } catch (error) {
     console.error("Change Password Error:", error);
